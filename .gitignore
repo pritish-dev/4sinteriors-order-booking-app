@@ -1,0 +1,21 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+
+# Credentials (VERY IMPORTANT)
+credentials/service_account.json
+credentials/oauth_client.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# PDF files
+*.pdf
