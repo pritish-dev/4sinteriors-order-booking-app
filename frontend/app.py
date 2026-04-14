@@ -1,9 +1,16 @@
 import streamlit as st
+
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from backend.sheets import get_stock_data, write_order
 from backend.price_parser import get_price, load_prices_from_drive
 from backend.pdf_generator import generate_pdf
 from backend.drive_upload import upload_file
 import datetime
+
+
 
 load_prices_from_drive()
 
