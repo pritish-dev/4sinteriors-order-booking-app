@@ -1,7 +1,12 @@
 import streamlit as st
-import requests
+from backend.sheets import get_stock_data, write_order
+from backend.price_parser import get_price, load_prices_from_drive
+from backend.pdf_generator import generate_pdf
+from backend.drive_upload import upload_file
+import datetime
 
-API_URL = "http://localhost:8000"
+load_prices_from_drive()
+
 
 st.title("Interio Order Booking")
 
@@ -9,7 +14,8 @@ name = st.text_input("Customer Name")
 phone = st.text_input("Phone")
 address = st.text_area("Address")
 
-stock = requests.get(f"{API_URL}/stock").json()
+stock = get_stock_data()
+
 
 items = {i["Item code"]: i["Item Description"] for i in stock}
 
@@ -21,15 +27,41 @@ qty = st.number_input("Quantity", min_value=1)
 salesperson = st.text_input("Your Email")
 
 if st.button("Create Order"):
-    res = requests.post(f"{API_URL}/create-order", json={
+
+    price = get_price(item_code)
+    total = price * qty
+
+    order_id = "ORD" + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+
+    order_data = {
         "customer_name": name,
         "phone": phone,
         "address": address,
-        "item_code": item_code,
         "item_name": item_name,
         "qty": qty,
-        "salesperson": salesperson
-    })
+        "price": price,
+        "total": total
+    }
+
+    pdf_file = f"{order_id}.pdf"
+    generate_pdf(order_data, pdf_file)
+
+    pdf_link = upload_file(pdf_file)
+
+    write_order([
+        str(datetime.date.today()),
+        order_id,
+        name,
+        phone,
+        address,
+        item_code,
+        item_name,
+        qty,
+        price,
+        total,
+        salesperson,
+        pdf_link
+    ])
 
     st.success("Order Created!")
-    st.write(res.json()["pdf"])
+    st.write(pdf_link)
