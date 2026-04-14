@@ -8,7 +8,7 @@ import datetime
 app = FastAPI()
 
 # Load prices on startup
-from backend.price_parser import load_prices_from_drive
+from backend.price_parser import load_prices_from_drive, get_price
 
 @app.on_event("startup")
 def startup_event():
