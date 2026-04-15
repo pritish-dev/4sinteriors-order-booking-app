@@ -1,33 +1,59 @@
 import streamlit as st
-from services.sheets import get_stock, get_price_map, write_order
-from services.drive import get_pdfs, download_pdf
-from services.pdf_to_sheet import extract_pdf_to_dataframe
-from services.pdf_generator import generate_pdf
 import datetime
-from services.gemini_parser import extract_price_with_gemini
-from services.sheets import client
 import pandas as pd
 
-st.title("Interio Order App")
+from services.sheets import get_stock, get_price_map, write_order, update_price_sheet
+from services.drive import get_pdfs, download_pdf
+from services.gemini_parser import extract_price_with_gemini
+from services.pdf_generator import generate_pdf
 
-# 🔥 Load Data
+st.set_page_config(page_title="Interio Order App", layout="wide")
+
+st.title("🛋️ Interio Order Booking App")
+
+# ================= PRICE SYNC =================
+
+st.header("📄 Price List Management")
+
+if st.button("🔄 Update Price List (Upload New PDF First)"):
+    files = get_pdfs()
+
+    if not files:
+        st.error("No PDF found in Drive folder")
+    else:
+        final_df = pd.DataFrame()
+
+        for f in files:
+            pdf = download_pdf(f["id"])
+            df = extract_price_with_gemini(pdf)
+            final_df = pd.concat([final_df, df])
+
+        if not final_df.empty:
+            update_price_sheet(final_df)
+            st.success("✅ Price list updated successfully")
+        else:
+            st.error("❌ Failed to extract data from PDF")
+
+# ================= ORDER CREATION =================
+
+st.header("🧾 Create Order")
+
 stock = get_stock()
 price_map = get_price_map()
 
 items = {i["Item code"]: i["Item Description"] for i in stock}
 
-# UI
 name = st.text_input("Customer Name")
 phone = st.text_input("Phone")
 
-item_code = st.selectbox("Item", list(items.keys()))
-qty = st.number_input("Qty", 1)
+item_code = st.selectbox("Select Item", list(items.keys()))
+qty = st.number_input("Quantity", min_value=1, value=1)
 
 price = price_map.get(item_code, 0)
 total = price * qty
 
-st.write("Price:", price)
-st.write("Total:", total)
+st.write(f"💰 Price: ₹{price}")
+st.write(f"🧮 Total: ₹{total}")
 
 if st.button("Create Order"):
     order_id = "ORD" + datetime.datetime.now().strftime("%Y%m%d%H%M")
@@ -50,26 +76,4 @@ if st.button("Create Order"):
         total
     ])
 
-    st.success("Order Created ✅")
-
-
-
-if st.button("🔄 Sync Price (AI Powered)"):
-    files = get_pdfs()
-
-    final_df = pd.DataFrame()
-
-    for f in files:
-        pdf = download_pdf(f["id"])
-        df = extract_price_with_gemini(pdf)
-        final_df = pd.concat([final_df, df])
-
-    sheet = client.open_by_key(st.secrets["STOCK_SHEET_ID"]).worksheet("Price_list")
-
-    sheet.clear()
-    sheet.append_row(["LN_CODE", "MRP"])
-
-    for row in final_df.values.tolist():
-        sheet.append_row(row)
-
-    st.success("✅ AI Price Sync Completed")
+    st.success("✅ Order Created Successfully")

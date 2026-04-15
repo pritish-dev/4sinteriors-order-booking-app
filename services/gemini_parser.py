@@ -1,25 +1,19 @@
 import google.generativeai as genai
 import streamlit as st
 import pandas as pd
+import json
 
-# Configure Gemini
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 
 def extract_price_with_gemini(pdf_bytes):
     prompt = """
-    You are given a furniture price list PDF.
+    Extract all LN CODE and MRP from this furniture price list PDF.
 
-    Extract all rows with:
-    - LN CODE
-    - MRP
-
-    Return ONLY JSON in this format:
+    Return ONLY valid JSON:
     [
-      {"LN_CODE": "ABC123", "MRP": 45000},
-      ...
+      {"LN_CODE": "ABC123", "MRP": 45000}
     ]
     """
 
@@ -30,11 +24,8 @@ def extract_price_with_gemini(pdf_bytes):
         ]
     )
 
-    text = response.text
-
     try:
-        import json
-        data = json.loads(text)
+        data = json.loads(response.text)
         return pd.DataFrame(data)
     except:
         return pd.DataFrame(columns=["LN_CODE", "MRP"])

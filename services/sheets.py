@@ -28,3 +28,12 @@ def get_price_map():
 def write_order(row):
     sheet = client.open_by_key(st.secrets["ORDER_SHEET_ID"]).worksheet("Franchise Orders")
     sheet.append_row(row)
+
+
+def update_price_sheet(df):
+    sheet = client.open_by_key(st.secrets["STOCK_SHEET_ID"]).worksheet(st.secrets["PRICE_SHEET_NAME"])
+    sheet.clear()
+    sheet.append_row(["LN_CODE", "MRP"])
+
+    for row in df.values.tolist():
+        sheet.append_row(row)
