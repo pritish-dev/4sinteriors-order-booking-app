@@ -19,7 +19,7 @@ if st.button("🔄 Update Price List (Upload New PDF First)"):
     files = get_pdfs()
 
     if not files:
-        st.error("No PDF found in Drive folder")
+        st.error("❌ No PDF found in Drive folder")
     else:
         final_df = pd.DataFrame()
 
