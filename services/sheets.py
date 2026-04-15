@@ -1,0 +1,30 @@
+import gspread
+import json
+import streamlit as st
+from google.oauth2.service_account import Credentials
+
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+
+creds_dict = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+
+creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+client = gspread.authorize(creds)
+
+
+def get_stock():
+    sheet = client.open_by_key(st.secrets["STOCK_SHEET_ID"]).worksheet("STOCK")
+    return sheet.get_all_records()
+
+
+def get_price_map():
+    sheet = client.open_by_key(st.secrets["STOCK_SHEET_ID"]).worksheet(st.secrets["PRICE_SHEET_NAME"])
+    data = sheet.get_all_records()
+    return {str(i["LN_CODE"]).strip(): int(i["MRP"]) for i in data}
+
+
+def write_order(row):
+    sheet = client.open_by_key(st.secrets["ORDER_SHEET_ID"]).worksheet("Franchise Orders")
+    sheet.append_row(row)
