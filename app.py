@@ -1,79 +1,101 @@
 import streamlit as st
-import datetime
 import pandas as pd
 
-from services.sheets import get_stock, get_price_map, write_order, update_price_sheet
-from services.drive import get_pdfs, download_pdf
-from services.gemini_parser import extract_price_with_gemini
+from utils.auth import login, check_auth
+from services.sheets import get_stock, write_order
 from services.pdf_generator import generate_pdf
+from services.whatsapp import generate_whatsapp_link
 
-st.set_page_config(page_title="Interio Order App", layout="wide")
+# ---------- AUTH ----------
+if not check_auth():
+    login()
+    st.stop()
 
-st.title("🛋️ Interio Order Booking App")
+user = st.session_state["user"]
 
-# ================= PRICE SYNC =================
+st.title(f"🪑 Order Booking - {user['name']}")
 
-st.header("📄 Price List Management")
+# ---------- LOAD STOCK ----------
+stock_df = get_stock()
 
-if st.button("🔄 Update Price List (Upload New PDF First)"):
-    files = get_pdfs()
+# ---------- CUSTOMER ----------
+st.subheader("Customer Details")
 
-    if not files:
-        st.error("❌ No PDF found in Drive folder")
-    else:
-        final_df = pd.DataFrame()
-
-        for f in files:
-            pdf = download_pdf(f["id"])
-            df = extract_price_with_gemini(pdf)
-            final_df = pd.concat([final_df, df])
-
-        if not final_df.empty:
-            update_price_sheet(final_df)
-            st.success("✅ Price list updated successfully")
-        else:
-            st.error("❌ Failed to extract data from PDF")
-
-# ================= ORDER CREATION =================
-
-st.header("🧾 Create Order")
-
-stock = get_stock()
-price_map = get_price_map()
-
-items = {i["Item code"]: i["Item Description"] for i in stock}
-
-name = st.text_input("Customer Name")
+customer_name = st.text_input("Customer Name")
 phone = st.text_input("Phone")
 
-item_code = st.selectbox("Select Item", list(items.keys()))
-qty = st.number_input("Quantity", min_value=1, value=1)
+# ---------- MULTI ITEM ----------
+st.subheader("Add Items")
 
-price = price_map.get(item_code, 0)
-total = price * qty
+items = []
 
-st.write(f"💰 Price: ₹{price}")
-st.write(f"🧮 Total: ₹{total}")
+num_items = st.number_input("Number of Items", 1, 10, 1)
 
-if st.button("Create Order"):
-    order_id = "ORD" + datetime.datetime.now().strftime("%Y%m%d%H%M")
+for i in range(num_items):
+    st.markdown(f"### Item {i+1}")
 
-    generate_pdf({
-        "customer": name,
-        "phone": phone,
-        "item": items[item_code],
+    item_name = st.selectbox(
+        f"Search Item {i}",
+        stock_df["ITEM_NAME"].tolist(),
+        key=f"item_{i}"
+    )
+
+    selected = stock_df[stock_df["ITEM_NAME"] == item_name].iloc[0]
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        qty = st.number_input("Qty", 1, 10, 1, key=f"qty_{i}")
+
+    with col2:
+        price = selected["PRICE"]
+        st.text(f"Price: {price}")
+
+    with col3:
+        st.text(f"Stock: {selected['STOCK']}")
+
+    items.append({
+        "name": item_name,
+        "code": selected["ITEM_CODE"],
         "qty": qty,
-        "total": total
-    }, f"{order_id}.pdf")
+        "price": price,
+        "warehouse": selected["WAREHOUSE"]
+    })
 
-    write_order([
-        str(datetime.date.today()),
-        order_id,
-        name,
-        phone,
-        item_code,
-        qty,
-        total
-    ])
+# ---------- TOTAL ----------
+total = sum(i["qty"] * i["price"] for i in items)
+st.success(f"Total Amount: ₹{total}")
 
-    st.success("✅ Order Created Successfully")
+# ---------- SAVE ----------
+if st.button("Create Order"):
+    order = {
+        "customer_name": customer_name,
+        "phone": phone,
+        "items": items,
+        "salesperson": user["name"]
+    }
+
+    write_order(order)
+
+    # Generate PDF
+    pdf_file = generate_pdf(order)
+
+    # WhatsApp message
+    msg = f"""
+Order Confirmed ✅
+Customer: {customer_name}
+Total: ₹{total}
+
+Thank you for choosing Interio 🙏
+"""
+
+    wa_link = generate_whatsapp_link(phone, msg)
+
+    st.success("Order Saved!")
+
+    # Download PDF
+    with open(pdf_file, "rb") as f:
+        st.download_button("📄 Download PDF", f, file_name="order.pdf")
+
+    # WhatsApp button
+    st.markdown(f"[📲 Send via WhatsApp]({wa_link})")

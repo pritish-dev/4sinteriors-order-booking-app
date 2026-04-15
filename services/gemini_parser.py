@@ -1,11 +1,22 @@
 import google.generativeai as genai
 import pandas as pd
 import json
+import time
+import os
 from utils.config import get_secret
 
-genai.configure(api_key=get_secret("GEMINI_API_KEY"))
+# ✅ Setup API key properly
+api_key = get_secret("GEMINI_API_KEY")
 
-model = genai.GenerativeModel("gemini-2.5-flash")
+if not api_key:
+    raise ValueError("❌ GEMINI_API_KEY missing")
+
+# Force fallback support
+os.environ["GOOGLE_API_KEY"] = api_key
+
+genai.configure(api_key=api_key)
+
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 
 def extract_price_with_gemini(pdf_bytes):
@@ -18,15 +29,24 @@ def extract_price_with_gemini(pdf_bytes):
     ]
     """
 
-    response = model.generate_content(
-        [
-            prompt,
-            {"mime_type": "application/pdf", "data": pdf_bytes.read()}
-        ]
-    )
+    for attempt in range(3):
+        try:
+            response = model.generate_content(
+                [
+                    prompt,
+                    {"mime_type": "application/pdf", "data": pdf_bytes.read()}
+                ]
+            )
 
-    try:
-        data = json.loads(response.text)
-        return pd.DataFrame(data)
-    except:
-        return pd.DataFrame(columns=["LN_CODE", "MRP"])
+            data = json.loads(response.text)
+            return pd.DataFrame(data)
+
+        except Exception as e:
+            if "429" in str(e):
+                wait_time = 15 * (attempt + 1)
+                print(f"Rate limit hit. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                raise e
+
+    return pd.DataFrame(columns=["LN_CODE", "MRP"])

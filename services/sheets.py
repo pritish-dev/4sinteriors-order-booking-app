@@ -16,13 +16,24 @@ client = gspread.authorize(creds)
 
 def get_stock():
     sheet = client.open_by_key(get_secret("STOCK_SHEET_ID")).worksheet("STOCK")
-    return sheet.get_all_records()
+    data = sheet.get_all_records()
+
+    return data
 
 
 def get_price_map():
-    sheet = client.open_by_key(get_secret("STOCK_SHEET_ID")).worksheet(get_secret("PRICE_SHEET_NAME"))
+    sheet_name = get_secret("PRICE_SHEET_NAME") or "PRICE_SHEET"
+
+    sheet = client.open_by_key(
+        get_secret("STOCK_SHEET_ID")
+    ).worksheet(sheet_name.strip())
+
     data = sheet.get_all_records()
-    return {str(i["LN_CODE"]).strip(): int(i["MRP"]) for i in data}
+
+    return {
+        str(i["LN_CODE"]).strip(): int(i["MRP"])
+        for i in data if i.get("LN_CODE")
+    }
 
 
 def write_order(row):
@@ -31,10 +42,19 @@ def write_order(row):
 
 
 def update_price_sheet(df):
-    sheet = client.open_by_key(get_secret("STOCK_SHEET_ID")).worksheet(get_secret("PRICE_SHEET_NAME"))
+    sheet_name = get_secret("PRICE_SHEET_NAME") or "PRICE_SHEET"
+
+    sheet = client.open_by_key(
+        get_secret("STOCK_SHEET_ID")
+    ).worksheet(sheet_name.strip())
 
     sheet.clear()
     sheet.append_row(["LN_CODE", "MRP"])
 
     for row in df.values.tolist():
         sheet.append_row(row)
+
+def get_users():
+    sheet = client.open_by_key(get_secret("STOCK_SHEET_ID")).worksheet("USERS")
+    data = sheet.get_all_records()
+    return data
