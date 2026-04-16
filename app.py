@@ -127,3 +127,38 @@ Thank you 🙏
         st.download_button("📄 Download PDF", f)
 
     st.markdown(f"[📲 Send via WhatsApp]({wa_link})")
+
+# ---------- PRICE LIST UPDATE ----------
+st.markdown("## 🔄 Price List Management")
+
+if st.button("Update Price List from PDFs"):
+
+    files = get_pdfs()
+
+    if not files:
+        st.warning("No PDF files found in Drive")
+    else:
+        all_data = []
+
+        progress = st.progress(0)
+
+        for i, file in enumerate(files):
+            st.write(f"Processing: {file['name']}")
+
+            pdf = download_pdf(file["id"])
+
+            df = extract_price_with_gemini(pdf)
+
+            if not df.empty:
+                all_data.append(df)
+
+            progress.progress((i + 1) / len(files))
+
+        if all_data:
+            final_df = pd.concat(all_data, ignore_index=True)
+
+            update_price_sheet(final_df)
+
+            st.success("✅ Price sheet updated successfully!")
+        else:
+            st.error("❌ No data extracted from PDFs")
