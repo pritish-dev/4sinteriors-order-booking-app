@@ -1,22 +1,33 @@
 import streamlit as st
-import pandas as pd
+import datetime
 
 from utils.auth import login, check_auth
 from services.sheets import get_stock, write_order
 from services.pdf_generator import generate_pdf
 from services.whatsapp import generate_whatsapp_link
 
-# ---------- AUTH ----------
+# ---------- LOGIN ----------
 if not check_auth():
     login()
     st.stop()
 
 user = st.session_state["user"]
 
-st.title(f"🪑 Order Booking - {user['name']}")
+st.title(f"🪑 Order Booking - {user.get('name')}")
 
 # ---------- LOAD STOCK ----------
 stock_df = get_stock()
+
+# DEBUG (remove later)
+# st.write(stock_df.columns)
+
+# ---------- SAFETY CHECK ----------
+required_cols = ["ITEM_NAME", "ITEM_CODE", "PRICE", "STOCK", "WAREHOUSE"]
+
+for col in required_cols:
+    if col not in stock_df.columns:
+        st.error(f"❌ Missing column: {col} in STOCK sheet")
+        st.stop()
 
 # ---------- CUSTOMER ----------
 st.subheader("Customer Details")
@@ -24,19 +35,17 @@ st.subheader("Customer Details")
 customer_name = st.text_input("Customer Name")
 phone = st.text_input("Phone")
 
-# ---------- MULTI ITEM ----------
+# ---------- ITEMS ----------
 st.subheader("Add Items")
 
 items = []
-
 num_items = st.number_input("Number of Items", 1, 10, 1)
 
 for i in range(num_items):
-    st.markdown(f"### Item {i+1}")
 
     item_name = st.selectbox(
-        f"Search Item {i}",
-        stock_df["ITEM_NAME"].tolist(),
+        f"Search Item {i+1}",
+        stock_df["ITEM_NAME"].dropna().unique().tolist(),
         key=f"item_{i}"
     )
 
@@ -45,57 +54,65 @@ for i in range(num_items):
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        qty = st.number_input("Qty", 1, 10, 1, key=f"qty_{i}")
+        qty = st.number_input("Qty", 1, 100, 1, key=f"qty_{i}")
 
     with col2:
-        price = selected["PRICE"]
-        st.text(f"Price: {price}")
+        price = int(selected.get("PRICE", 0))
+        st.write(f"💰 Price: ₹{price}")
 
     with col3:
-        st.text(f"Stock: {selected['STOCK']}")
+        st.write(f"📦 Stock: {selected.get('STOCK', 0)}")
+        st.write(f"🏬 WH: {selected.get('WAREHOUSE', '')}")
 
     items.append({
         "name": item_name,
-        "code": selected["ITEM_CODE"],
+        "code": selected.get("ITEM_CODE"),
         "qty": qty,
         "price": price,
-        "warehouse": selected["WAREHOUSE"]
+        "warehouse": selected.get("WAREHOUSE")
     })
 
 # ---------- TOTAL ----------
 total = sum(i["qty"] * i["price"] for i in items)
 st.success(f"Total Amount: ₹{total}")
 
-# ---------- SAVE ----------
+# ---------- CREATE ORDER ----------
 if st.button("Create Order"):
-    order = {
-        "customer_name": customer_name,
-        "phone": phone,
-        "items": items,
-        "salesperson": user["name"]
-    }
 
-    write_order(order)
+    order_id = "ORD" + datetime.datetime.now().strftime("%Y%m%d%H%M")
 
-    # Generate PDF
-    pdf_file = generate_pdf(order)
+    for item in items:
+        write_order([
+            str(datetime.date.today()),
+            order_id,
+            customer_name,
+            phone,
+            item["code"],
+            item["name"],
+            item["qty"],
+            item["price"],
+            item["qty"] * item["price"],
+            item["warehouse"],
+            user.get("name")
+        ])
 
-    # WhatsApp message
+    # PDF
+    file_name = f"{order_id}.pdf"
+    generate_pdf({"items": items}, file_name)
+
+    # WhatsApp
     msg = f"""
 Order Confirmed ✅
 Customer: {customer_name}
 Total: ₹{total}
-
-Thank you for choosing Interio 🙏
+Thank you 🙏
 """
 
     wa_link = generate_whatsapp_link(phone, msg)
 
-    st.success("Order Saved!")
+    st.success("✅ Order Created")
 
-    # Download PDF
-    with open(pdf_file, "rb") as f:
-        st.download_button("📄 Download PDF", f, file_name="order.pdf")
+    with open(file_name, "rb") as f:
+        st.download_button("📄 Download PDF", f)
 
-    # WhatsApp button
     st.markdown(f"[📲 Send via WhatsApp]({wa_link})")
