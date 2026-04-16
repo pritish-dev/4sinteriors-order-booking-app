@@ -17,8 +17,14 @@ client = gspread.authorize(creds)
 def get_stock():
     sheet = client.open_by_key(get_secret("STOCK_SHEET_ID")).worksheet("STOCK")
     data = sheet.get_all_records()
+    
+    import pandas as pd
+    df = pd.DataFrame(data)
 
-    return data
+    # 🔥 Normalize columns
+    df.columns = [c.strip().upper().replace(" ", "_") for c in df.columns]
+
+    return df
 
 
 def get_price_map():
