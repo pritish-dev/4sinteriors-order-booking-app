@@ -7,10 +7,12 @@ from utils.auth import login, check_auth
 from services.sheets import (
     get_stock,
     write_order,
-    get_price_map,
-    update_price_sheet
+    get_price_map
 )
-
+try:
+    from services.sheets import update_price_sheet
+except:
+    update_price_sheet = None
 from services.pdf_generator import generate_pdf
 from services.whatsapp import generate_whatsapp_link
 

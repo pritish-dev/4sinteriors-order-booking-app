@@ -55,3 +55,23 @@ def get_price_map():
         return price_map
     except:
         return {}
+    
+def update_price_sheet(df):
+    """
+    Overwrites/creates PRICE_SHEET and writes extracted price data
+    """
+
+    sheet = client.open_by_key(get_secret("STOCK_SHEET_ID"))
+
+    try:
+        # Try existing sheet
+        ws = sheet.worksheet("PRICE_SHEET")
+        ws.clear()
+    except:
+        # Create if not exists
+        ws = sheet.add_worksheet(title="PRICE_SHEET", rows="2000", cols="20")
+
+    # Convert dataframe to list
+    data = [df.columns.values.tolist()] + df.values.tolist()
+
+    ws.update(data)
