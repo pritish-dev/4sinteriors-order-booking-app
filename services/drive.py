@@ -1,10 +1,8 @@
 import io
 import json
-import streamlit as st
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-
 from utils.config import get_secret
 
 scope = ["https://www.googleapis.com/auth/drive"]
@@ -29,6 +27,7 @@ def get_pdfs():
 def download_pdf(file_id):
     request = drive_service.files().get_media(fileId=file_id)
     file = io.BytesIO()
+
     downloader = MediaIoBaseDownload(file, request)
 
     done = False
