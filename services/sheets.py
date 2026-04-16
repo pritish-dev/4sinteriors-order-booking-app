@@ -14,12 +14,13 @@ creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 client = gspread.authorize(creds)
 
 
-# 🔥 Normalize columns function
+# ✅ Normalize column names
 def normalize_df(df):
     df.columns = [c.strip().upper().replace(" ", "_") for c in df.columns]
     return df
 
 
+# ✅ Fetch stock
 def get_stock():
     sheet = client.open_by_key(get_secret("STOCK_SHEET_ID")).worksheet("STOCK")
     data = sheet.get_all_records()
@@ -27,12 +28,30 @@ def get_stock():
     return normalize_df(df)
 
 
+# ✅ Fetch users
 def get_users():
     sheet = client.open_by_key(get_secret("STOCK_SHEET_ID")).worksheet("USERS")
-    data = sheet.get_all_records()
-    return data
+    return sheet.get_all_records()
 
 
+# ✅ Write order
 def write_order(row):
     sheet = client.open_by_key(get_secret("ORDER_SHEET_ID")).worksheet("Franchise Orders")
     sheet.append_row(row)
+
+
+# ✅ Optional price map (if using price sheet)
+def get_price_map():
+    try:
+        sheet = client.open_by_key(get_secret("STOCK_SHEET_ID")).worksheet("PRICE_SHEET")
+        data = sheet.get_all_records()
+
+        price_map = {}
+        for row in data:
+            code = str(row.get("LN_CODE")).strip()
+            price = float(row.get("MRP", 0))
+            price_map[code] = price
+
+        return price_map
+    except:
+        return {}

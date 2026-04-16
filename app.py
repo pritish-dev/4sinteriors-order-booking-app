@@ -2,7 +2,7 @@ import streamlit as st
 import datetime
 
 from utils.auth import login, check_auth
-from services.sheets import get_stock, write_order
+from services.sheets import get_stock, write_order, get_price_map
 from services.pdf_generator import generate_pdf
 from services.whatsapp import generate_whatsapp_link
 
@@ -15,18 +15,21 @@ user = st.session_state["user"]
 
 st.title(f"🪑 Order Booking - {user.get('name')}")
 
-# ---------- LOAD STOCK ----------
+# ---------- LOAD DATA ----------
 stock_df = get_stock()
+price_map = get_price_map()
 
-# DEBUG (remove later)
-# st.write(stock_df.columns)
-
-# ---------- SAFETY CHECK ----------
-required_cols = ["ITEM_NAME", "ITEM_CODE", "PRICE", "STOCK", "WAREHOUSE"]
+# ---------- CHECK REQUIRED COLUMNS ----------
+required_cols = [
+    "ITEM_DESCRIPTION",
+    "ITEM_CODE",
+    "FREE_STOCK",
+    "WAREHOUSE_CODE"
+]
 
 for col in required_cols:
     if col not in stock_df.columns:
-        st.error(f"❌ Missing column: {col} in STOCK sheet")
+        st.error(f"❌ Missing column: {col}")
         st.stop()
 
 # ---------- CUSTOMER ----------
@@ -45,11 +48,15 @@ for i in range(num_items):
 
     item_name = st.selectbox(
         f"Search Item {i+1}",
-        stock_df["ITEM_NAME"].dropna().unique().tolist(),
+        stock_df["ITEM_DESCRIPTION"].dropna().unique().tolist(),
         key=f"item_{i}"
     )
 
-    selected = stock_df[stock_df["ITEM_NAME"] == item_name].iloc[0]
+    selected = stock_df[stock_df["ITEM_DESCRIPTION"] == item_name].iloc[0]
+
+    item_code = str(selected.get("ITEM_CODE")).strip()
+
+    price = price_map.get(item_code, 0)
 
     col1, col2, col3 = st.columns(3)
 
@@ -57,19 +64,23 @@ for i in range(num_items):
         qty = st.number_input("Qty", 1, 100, 1, key=f"qty_{i}")
 
     with col2:
-        price = int(selected.get("PRICE", 0))
         st.write(f"💰 Price: ₹{price}")
 
     with col3:
-        st.write(f"📦 Stock: {selected.get('STOCK', 0)}")
-        st.write(f"🏬 WH: {selected.get('WAREHOUSE', '')}")
+        stock = selected.get("FREE_STOCK", 0)
+        st.write(f"📦 Stock: {stock}")
+        st.write(f"🏬 WH: {selected.get('WAREHOUSE_CODE')}")
+
+    # 🔥 Stock validation
+    if qty > stock:
+        st.error("❌ Not enough stock")
 
     items.append({
         "name": item_name,
-        "code": selected.get("ITEM_CODE"),
+        "code": item_code,
         "qty": qty,
         "price": price,
-        "warehouse": selected.get("WAREHOUSE")
+        "warehouse": selected.get("WAREHOUSE_CODE")
     })
 
 # ---------- TOTAL ----------
